@@ -1,0 +1,134 @@
+---
+title: "11task"
+author: "V.S. Romantseva"
+date: '13 мая 2018 г '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Анализ главных компонент
+
+Среднее значение и дисперсия по каждому регрессору.
+
+```{r,echo=FALSE}
+library ("ISLR")
+
+df <- Carseats
+df$ShelveLoc <- as.numeric(df$ShelveLoc)
+df$Urban <- as.numeric(df$Urban)
+df$US <- as.numeric(df$US)
+apply(df, 2, mean)
+apply(df, 2, var)
+
+```
+
+Функция центрированных переменных выдает средние значения регрессоров.
+ 
+```{r,echo=FALSE}
+pr.out=prcomp(df, scale=TRUE)
+names(pr.out)
+pr.out$center
+biplot(pr.out, scale=0)
+pr.out$rotation=-pr.out$rotation
+pr.out$x=-pr.out$x
+biplot(pr.out, scale=0)
+pr.var=pr.out$sdev^2
+pve=pr.var/sum(pr.var)
+plot(pve, xlab="Principal Component", ylab="Proportion of Variance Explained", ylim=c(0,1),type='b')
+plot(cumsum(pve), xlab="Principal Component", ylab="Cumulative Proportion of Variance Explained", ylim=c(0,1),type='b')
+```
+
+На последнем графике можно увидеть, что стоит остановиться на 6 главных компонентах, так как они суммарно объясняют более 70% дисперсии.
+
+
+# Кластеризация по методу К средних
+
+K=2. Разбиение на 2 кластер.
+
+```{r,echo=FALSE}
+x=matrix(df$Sales+df$CompPrice+df$Income+df$Advertising+df$Population+df$Price+df$ShelveLoc+df$Age+df$Education+df$Urban+df$US)
+km.out=kmeans(x,2,nstart=1)
+plot(x, col=(km.out$cluster+1), main="K-Means Clustering Results with K=2", xlab="", ylab="", pch=20, cex=2)
+```
+
+Разбиение данных на 2 кластера показывает себя хорошо, так как некоторые  даныые расположены на границе двух групп.
+
+
+K=3. Разбиение на 3 кластера. 
+
+```{r,echo=FALSE}
+km.out=kmeans(x,3,nstart=1)
+plot(x, col=(km.out$cluster+1), main="K-Means Clustering Results with K=3", xlab="", ylab="", pch=20, cex=2)
+km.out=kmeans(x,3,nstart=1)
+km.out$tot.withinss
+km.out=kmeans(x,3,nstart=2)
+km.out$tot.withinss
+```
+
+Разбиение на 3 кластера показывает так же хороший результат. 
+
+# Иерархическая кластеризация
+
+
+
+```{r,echo=FALSE}
+hc.complete=hclust(dist(x), method="complete")
+hc.average=hclust(dist(x), method="average")
+hc.single=hclust(dist(x), method="single")
+par(mfrow=c(1,3))
+plot(hc.complete,main="Complete Linkage", xlab="", sub="", cex=.9)
+plot(hc.average, main="Average Linkage", xlab="", sub="", cex=.9)
+plot(hc.single, main="Single Linkage", xlab="", sub="", cex=.9)
+xsc=scale(x)
+par(mfrow=c(1,1))
+plot(hclust(dist(xsc), method="complete"), main="Hierarchical Clustering with Scaled Features", xlab="", sub="")
+```
+
+На графиках видно, что в случае метода complete присоединение кластеров происходит на более высоких уровнях, что свидетельствует о более полной связи между данными.
+
+```{r,echo=FALSE}
+y <- cutree(hc.complete,3)
+df<-data.frame(df,y) 
+klass1<-df[y==1,] 
+klass2<-df[y==2,] 
+klass3<-df[y==3,]
+
+fit1 <- lm(Sales ~ . -y -Education -Urban -US -Population, klass1)
+summary(fit1)
+train <- sample(1:nrow(klass1), nrow(klass1)/2)
+test <- -train
+z <- klass1$Sales
+z.test <- z[test]
+round(mean((mean(z[train]) - z.test)^2), 0)
+```
+
+Отчет по регрессионной модели 1 кластера и средняя ошибка.
+
+```{r,echo=FALSE}
+fit2 <- lm(Sales ~ . -y -Urban -US -Education, klass2)
+summary(fit2)
+train <- sample(1:nrow(klass2), nrow(klass2)/2)
+test <- -train
+z <- klass2$Sales
+z.test <- z[test]
+round(mean((mean(z[train]) - z.test)^2), 0)
+```
+
+Отчет по регрессионной модели 2 кластера и средняя ошибка.
+
+```{r,echo=FALSE}
+fit3 <- lm(Sales ~ . -y -US -Population -Urban -Income, klass3)
+summary(fit3)
+train <- sample(1:nrow(klass3), nrow(klass3)/2)
+test <- -train
+z <- klass3$Sales
+z.test <- z[test]
+round(mean((mean(z[train]) - z.test)^2), 0)
+```
+
+Отчет по регрессионной модели 3 кластера и средняя ошибка.
+
+По показателям качества лучшей является 3 модель, ее и стоит использовать в дальнейшем.
