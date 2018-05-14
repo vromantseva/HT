@@ -1,0 +1,135 @@
+---
+title: "8task"
+author: "V.S. Romantseva"
+date: '12 мая 2018 г '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library('tree') # деревья
+library('ISLR')              # наборы данных
+library('randomForest') # случайный лес
+library('gbm')
+```
+
+Согласно заданию, построим модели с помощью деревьев с: 
+
+-Непрерывной переменной
+
+-Категориальной переменной
+
+Загрузим таблицу с данными по зарплатам и добавим к ней переменную High – “высокая зарплата” со значениями:
+
+* 1 если зарплата больше 128.68;
+
+* 0 в противном случае.
+
+Построим дерево на обучающей выборке и посчитаем MSE.
+```{r data, message=F}
+attach(Wage)
+#непрерывный Y==============================
+# обучающая выборка
+set.seed(3)
+train <- sample(1:nrow(Wage), nrow(Wage)/2) # обучающая выборка -- 50%
+
+# обучаем модель
+tree.wage <- tree(wage ~ .-wage -region -logwage, Wage, subset = train)
+summary(tree.wage)
+
+# визуализация
+plot(tree.wage, pretty = 0)
+yhat <- predict(tree.wage, newdata=Wage[-train])
+mse.test <- mean((yhat - train)^2)
+```
+
+Произведем обучение модели методом случайного леса.
+
+```{r random_forest, message=FALSE}
+
+#случайный лес-------------------------
+# обучаем модель
+set.seed(3)
+wage.test <- Wage[-train, "wage"]
+rf.wage <- randomForest(wage ~ .-wage -region -logwage, data = Wage, subset = train,
+                          mtry = 6, importance = TRUE)
+# график результата
+plot(rf.wage) 
+# прогноз
+yhat.rf <- predict(rf.wage, newdata = Wage[-train, ])
+plot(yhat.rf, wage.test)
+# линия идеального прогноза
+abline(0, 1)
+# MSE на тестовой выборке
+mse.test <- mean((yhat.rf - wage.test)^2)
+#ошибка равна 1234.674
+```
+
+Построим модель с категориальным Y.
+
+```{r category Y, message=F}
+High <- ifelse(wage <= 128.68, '0', '1')
+High
+# присоединяем к таблице данных
+Wage1 <- data.frame(Wage, High)
+str(Wage1)
+# модель бинарного дерева
+tree.wage1 <- tree(High ~ .-wage -region -logwage, Wage1)
+summary(tree.wage1)
+# график результата
+plot(tree.wage1) # ветви
+text(tree.wage1) # подписи
+
+```
+
+Построим модель на тестовой выборке.
+
+```{r test tree, message=F}
+# ядро генератора случайных чисел
+set.seed(3)
+
+# обучающая выборка
+train1 <- sample(1:nrow(Wage1), nrow(Wage1)/2)
+
+# тестовая выборка
+wage1.test <- Wage1[-train1,]
+High.test <- High[-train1]
+
+# строим дерево на обучающей выборке
+tree.wage.test <- tree(High ~ . -wage -region -logwage, Wage1, subset = train1)
+summary(tree.wage.test)
+# график результата
+plot(tree.wage.test) # ветви
+text(tree.wage.test) # подписи
+# делаем прогноз
+tree.pred <- predict(tree.wage.test, wage1.test, type = "class")
+
+```
+
+Проведем обучение модели методом случайного леса.
+```{r random_forest2, message=F}
+
+# обучаем модель
+set.seed(3)
+rf.wage1 <- randomForest(High ~. -wage -region -logwage , data = Wage1, subset = train,
+                           mtry = 6, importance = TRUE)
+# график результата
+plot(rf.wage1) 
+
+# прогноз
+yhat.rf1 <- predict(rf.wage, newdata = Wage1[-train, ])
+wage2.test <- Wage1[-train, "High"]
+as.numeric(wage2.test)
+# MSE на тестовой выборке
+mse.test <- mean((yhat.rf1 - as.numeric(wage2.test)^2))
+
+# MSE на тестовой выборке 110.2912
+
+# важность предикторов
+importance(rf.wage) # оценки
+
+varImpPlot(rf.wage) # графики
+
+```
+
+ Наибольшее влияние в модели оказывают такие показатели как age (возраст) и education (уровень образовнания).
